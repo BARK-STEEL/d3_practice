@@ -34,3 +34,12 @@ d3.json('data/data.json', function(data) {
 
     console.log(ages.values());
 });
+
+var div = d3.selectAll('div');
+console.log(div.nodes());
+
+var divLinks = div.selectAll('a');
+console.log(divLinks.nodes());
+
+var actionLink = d3.selectAll('.action');
+console.log(actionLink.nodes());
