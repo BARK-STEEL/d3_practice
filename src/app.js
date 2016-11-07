@@ -1,45 +1,89 @@
-var linearScale = d3.scaleOrdinal()
-  .domain(["poor", "good", "great"])
-  .range(["red", "white", "green"]);
+var margin = { top: 10, right: 20, bottom: 30, left: 30 }
+var width = 400 - margin.left - margin.right;
+var height = 565 - margin.top - margin.bottom;
 
-console.log(linearScale("good"));
-console.log(linearScale("poor"));
-console.log(linearScale("great"));
+var svg = d3.select('.chart')
+  .append('svg')
+    .attr('width', width + margin.left + margin.right)
+    .attr('height', height + margin.top + margin.bottom)
+    .call(responsivefy)
+  .append('g')
+    .attr('transform', `translate(${margin.left}, ${margin.top})`);
 
+d3.json('../data/line_chart.json', function(err, data) {
+  var parseTime = d3.timeParse('%Y/%m/%d')
 
-var timeScale = d3.scaleTime()
-  .domain([new Date(2016, 0, 1), new Date()])
-  .range([0, 100]);
-
-console.log(timeScale(new Date(2016, 0, 15)));
-console.log(timeScale(new Date(2016, 5, 3)));
-console.log(timeScale(new Date()));
-
-console.log(timeScale.invert(50));
-
-d3.json('data/data.json', function(data) {
-    var extent = d3.extent(data, function(d){
-      return d.age
+  data.forEach(company => {
+    company.values.forEach(d => {
+      d.date = parseTime(d.date);
+      d.close = +d.close;
     });
-    console.log(extent);
+  });
 
-    var scale = d3.scaleLinear()
-      .domain(extent)
-      .range([0, 600]);
-      console.log(scale(37));
+  var xScale = d3.scaleTime()
+    .domain([
+      d3.min(data, co => d3.min(co.values, d => d.date)),
+      d3.max(data, co => d3.max(co.values, d => d.date))
+    ])
+    .range([0, width]);
+  svg
+    .append('g')
+      .attr('transform', `translate(0, ${height})`)
+    .call(d3.axisBottom(xScale).ticks(5));
 
-    var ages = d3.set(data, function(d) {
-      return d.age;
-    });
+  var yScale = d3.scaleLinear()
+    .domain([
+      d3.min(data, co => d3.min(co.values, d => d.close)),
+      d3.max(data, co => d3.max(co.values, d => d.close))
+    ])
+    .range([height, 0]);
+  svg
+    .append('g')
+    .call(d3.axisLeft(yScale));
 
-    console.log(ages.values());
+  var area = d3.area()
+    .x(d => xScale(d.date))
+    .y0(yScale(yScale.domain()[0]))
+    .y1(d => yScale(d.close))
+    .curve(d3.curveCatmullRom.alpha(0.5));
+
+  svg
+    .selectAll('.area')
+    .data(data)
+    .enter()
+    .append('path')
+    .attr('class', 'area')
+    .attr('d', d => area(d.values))
+    .style('stroke', (d, i) => ['#FF9900', '#3369E8'][i])
+    .style('stroke-width', 2)
+    .style('fill', (d, i) => ['#FF9900', '#3369E8'][i])
+    .style('fill-opacity', 0.5);
+
 });
 
-var div = d3.selectAll('div');
-console.log(div.nodes());
+function responsivefy(svg) {
+  //get container + svg aspect ratio
+  var container = d3.select(svg.node().parentNode),
+      width = parseInt(svg.style('width')),
+      height = parseInt(svg.style('height')),
+      aspect = width / height;
 
-var divLinks = div.selectAll('a');
-console.log(divLinks.nodes());
+  // add viewBox and preserveAspectRatio properties.
+  // and call resize so that svg resize on intial page load
+  svg.attr("viewBox", "0 0 " + width + " " + height)
+    .attr("preserveAspectRatio", "xMinYMid")
+    .call(resize);
 
-var actionLink = d3.selectAll('.action');
-console.log(actionLink.nodes());
+  // to register multiple listeners for same event type,
+  // you need to ass namespace, i.e., 'click.foo'
+  // necessary if you invoke this function for multiple svgs
+  // api docs: https://github.com/mbostock/d3/wiki/Selections#on
+  d3.select(window).on("resize." + container.attr("id"), resize );
+
+  // get width of container and resize svg to fit it.
+  function resize() {
+    var targetWidth = parseInt(container.style("width"));
+    svg.attr("width", targetWidth);
+    svg.attr("height", Math.round(targetWidth / aspect));
+  }
+}
